@@ -1,0 +1,112 @@
+TextView txt;
+    Button btn1, btn2;
+    SendData sendData;
+    static final int STATE_CONNECTED = 1;
+    static final int STATE_CONNECTION_FAILED = 2;
+    public static final UUID MY_UUID = UUID.fromString("00001101-0000-1000-8000-00805F9B34FB");
+    BluetoothDevice btDevice;
+    String on = "A";      //on
+    String off = "B";     //off
+
+    @Override
+    protected void onCreate(Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+        setContentView(R.layout.control_led);
+        txt = findViewById(R.id.statustxt);
+        btn1 = findViewById(R.id.onBtn);
+        btn2 = findViewById(R.id.offBtn);
+
+        //Bundle extras = getIntent().getExtras();
+        Intent intent = getIntent();
+        //if (extras != null) {
+           btDevice = intent.getParcelableExtra("btDevice");
+       // }
+        ConnectThread connect = new ConnectThread(btDevice);
+        connect.start();
+        Toast.makeText(this, "Connecting...", Toast.LENGTH_SHORT).show();
+
+        btn1.setOnClickListener(view -> {
+            txt.setText(R.string.ledON);
+            sendData.write(on.getBytes());
+        });
+
+        btn2.setOnClickListener(view -> {
+            txt.setText(R.string.ledOFF);
+            sendData.write(off.getBytes());
+        });
+    }
+
+    Handler handler = new Handler(msg -> {
+
+        switch (msg.what) {
+            case STATE_CONNECTED:
+                Toast.makeText(this, "Connected", Toast.LENGTH_SHORT).show();
+                break;
+            case STATE_CONNECTION_FAILED:
+                Toast.makeText(this, "Connection Failed", Toast.LENGTH_SHORT).show();
+                break;
+        }
+        return true;
+    });
+
+    public class ConnectThread extends Thread
+    {
+        private BluetoothSocket socket;
+
+        @SuppressLint("MissingPermission")
+        public ConnectThread (BluetoothDevice btDevice)
+        {
+            try {
+                socket = btDevice.createRfcommSocketToServiceRecord(MY_UUID);
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+        }
+
+        @SuppressLint("MissingPermission")
+        public void run()
+        {
+            try {
+                socket.connect();
+                Message message= Message.obtain();
+                message.what=STATE_CONNECTED;
+                handler.sendMessage(message);
+
+                sendData= new SendData(socket);
+
+            } catch (IOException e) {
+                try {
+                    socket.close();
+                } catch (IOException ex) {
+                    ex.printStackTrace();
+                }
+                Message message=Message.obtain();
+                message.what=STATE_CONNECTION_FAILED;
+                handler.sendMessage(message);
+            }
+        }
+    }
+
+    private static class SendData
+    {
+        OutputStream outStream;
+
+        public SendData (BluetoothSocket socket)
+        {
+            try {
+                outStream=socket.getOutputStream();
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+        }
+
+        public void write(byte[] bytes)
+        {
+            try {
+                outStream.write(bytes);
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+        }
+    }
+}
